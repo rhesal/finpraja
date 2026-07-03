@@ -2,7 +2,7 @@
   "name": "FinPraja Keuangan ASN",
   "short_name": "FinPraja",
   "description": "Aplikasi Manajemen Keuangan Pribadi ASN",
-  "start_url": "/finpraja/",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
