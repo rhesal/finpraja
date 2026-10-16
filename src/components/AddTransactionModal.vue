@@ -5,6 +5,7 @@ import Tesseract from 'tesseract.js'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
+  editTransaction: { type: Object, default: null },
 })
 const emit = defineEmits(['close'])
 
@@ -46,7 +47,36 @@ const canSave = computed(() =>
 watch(() => props.show, async (newVal) => {
   if (newVal) {
     allCategories.value = await db.categories.toArray()
-    resetForm()
+    if (props.editTransaction) {
+      // Prefill for edit mode
+      form.value = {
+        type: props.editTransaction.type,
+        amount: props.editTransaction.amount,
+        note: props.editTransaction.note || '',
+        date: props.editTransaction.date,
+      }
+      amountDisplay.value = formatCurrency(props.editTransaction.amount)
+
+      // Resolve parent/sub category
+      const cat = allCategories.value.find(c => c.id === props.editTransaction.category_id)
+      if (cat) {
+        if (cat.parent_id) {
+          selectedParentId.value = cat.parent_id
+          // Load subs then set selectedSubId
+          subCategories.value = await db.categories
+            .where('parent_id')
+            .equals(cat.parent_id)
+            .toArray()
+          selectedSubId.value = cat.id
+        } else {
+          selectedParentId.value = cat.id
+          selectedSubId.value = null
+          subCategories.value = []
+        }
+      }
+    } else {
+      resetForm()
+    }
     await nextTick()
     amountInputRef.value?.focus()
   }
@@ -59,7 +89,9 @@ watch(() => form.value.type, () => {
 })
 
 watch(selectedParentId, async (parentId) => {
-  selectedSubId.value = null
+  if (!props.editTransaction || selectedSubId.value === null) {
+    selectedSubId.value = null
+  }
   if (parentId) {
     subCategories.value = await db.categories
       .where('parent_id')
@@ -113,13 +145,20 @@ async function saveTransaction() {
   if (!canSave.value) return
   saving.value = true
   try {
-    await db.transactions.add({
+    const payload = {
       amount: form.value.amount,
       type: form.value.type,
       category_id: finalCategoryId.value,
       date: form.value.date,
       note: form.value.note,
-    })
+    }
+
+    if (props.editTransaction) {
+      await db.transactions.update(props.editTransaction.id, payload)
+    } else {
+      await db.transactions.add(payload)
+    }
+
     success.value = true
     setTimeout(() => {
       success.value = false
@@ -289,14 +328,14 @@ function close() {
               <div class="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center animate-scale-in">
                 <i class="fa-solid fa-check text-3xl text-emerald-400"></i>
               </div>
-              <p class="text-emerald-400 font-semibold">Transaksi Tersimpan!</p>
+              <p class="text-emerald-400 font-semibold">{{ editTransaction ? 'Transaksi Diperbarui!' : 'Transaksi Tersimpan!' }}</p>
             </div>
 
             <!-- Scrollable content -->
             <div class="overflow-y-auto flex-1 px-5 pb-8 pt-2">
               <!-- Header -->
               <div class="flex items-center justify-between mb-5">
-                <h2 class="text-lg font-bold text-white">Tambah Transaksi</h2>
+                <h2 class="text-lg font-bold text-white">{{ editTransaction ? 'Edit Transaksi' : 'Tambah Transaksi' }}</h2>
                 <button @click="close" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                   <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
@@ -472,7 +511,7 @@ function close() {
                 :disabled="!canSave"
                 class="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/25 hover:bg-emerald-400 active:scale-[0.98] transition-all duration-150 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed"
               >
-                <i class="fa-solid fa-check mr-2"></i>Simpan Transaksi
+                <i class="fa-solid fa-check mr-2"></i>{{ editTransaction ? 'Update Transaksi' : 'Simpan Transaksi' }}
               </button>
             </div>
           </div>
