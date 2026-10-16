@@ -7,6 +7,7 @@ const emit = defineEmits(['open-add-modal', 'open-edit-modal'])
 
 const filterType = ref('all')
 const selectedDailyDate = ref('')
+const searchQuery = ref('')
 
 const periodDate = ref(new Date())
 const period = computed(() => {
@@ -68,6 +69,18 @@ const filteredTransactions = computed(() => {
   if (filterType.value !== 'all') {
     list = list.filter(t => t.type === filterType.value)
   }
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter(t => {
+      const cat = getCategoryById(t.category_id)
+      const parentName = getParentCategoryName(cat) || ''
+      return (
+        (t.note && t.note.toLowerCase().includes(q)) ||
+        cat.name.toLowerCase().includes(q) ||
+        parentName.toLowerCase().includes(q)
+      )
+    })
+  }
   return list.sort((a, b) => b.id - a.id)
 })
 
@@ -115,6 +128,24 @@ async function deleteTransaction(id) {
     <div>
       <h2 class="text-lg font-bold text-white">Riwayat Transaksi</h2>
       <p class="text-xs text-slate-500 mt-0.5">{{ filteredTransactions.length }} transaksi tercatat</p>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="relative">
+      <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Cari catatan atau kategori..."
+        class="w-full pl-9 pr-4 py-2.5 bg-slate-800/60 border border-slate-700/40 rounded-xl text-white text-sm placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+      />
+      <button
+        v-if="searchQuery"
+        @click="searchQuery = ''"
+        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+      >
+        <i class="fa-solid fa-xmark text-xs"></i>
+      </button>
     </div>
 
     <div class="flex items-center justify-between px-3 py-2.5 bg-slate-800/40 rounded-xl">
@@ -185,7 +216,7 @@ async function deleteTransaction(id) {
       <div class="w-16 h-16 rounded-2xl bg-slate-800/60 flex items-center justify-center">
         <i class="fa-solid fa-inbox text-3xl text-slate-600"></i>
       </div>
-      <p class="text-sm text-slate-500">Tidak ada transaksi pada tanggal/bulan ini.</p>
+      <p class="text-sm text-slate-500">Tidak ada transaksi yang cocok.</p>
     </div>
 
     <div v-else class="space-y-2">
