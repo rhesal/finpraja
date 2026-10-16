@@ -3,11 +3,11 @@ import { ref, computed, watch } from 'vue'
 import { db } from '../db.js'
 import { useLiveQuery } from '../composables/useLiveQuery.js'
 
-// ── State ──
-const filterType = ref('all') // 'all' | 'income' | 'expense'
-const selectedDailyDate = ref('') // 'YYYY-MM-DD' or empty for "Semua"
+const emit = defineEmits(['open-add-modal', 'open-edit-modal'])
 
-// ── Period Navigation ──
+const filterType = ref('all')
+const selectedDailyDate = ref('')
+
 const periodDate = ref(new Date())
 const period = computed(() => {
   const y = periodDate.value.getFullYear()
@@ -31,7 +31,6 @@ function nextMonth() {
   periodDate.value = d
 }
 
-// Watch daily date selector to sync monthly navigator
 watch(selectedDailyDate, (newVal) => {
   if (newVal) {
     const parsed = new Date(newVal)
@@ -41,48 +40,34 @@ watch(selectedDailyDate, (newVal) => {
   }
 })
 
-// Compute days in the active month dynamically
 const daysInMonth = computed(() => {
   const year = periodDate.value.getFullYear()
-  const month = periodDate.value.getMonth() // 0-indexed
+  const month = periodDate.value.getMonth()
   const lastDay = new Date(year, month + 1, 0).getDate()
-  
   const days = []
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-  
   for (let i = 1; i <= lastDay; i++) {
     const dateObj = new Date(year, month, i)
     const dayName = dayNames[dateObj.getDay()]
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`
-    days.push({
-      dateNum: i,
-      dayName,
-      dateStr
-    })
+    days.push({ dateNum: i, dayName, dateStr })
   }
   return days
 })
 
-// Reactive live queries — auto-update when DB changes
 const { data: transactions } = useLiveQuery(() => db.transactions.toArray(), [])
 const { data: categories } = useLiveQuery(() => db.categories.toArray(), [])
 
-// Three-layer Filtering: 1st Daily (if active) otherwise Monthly -> 2nd Type -> Sort
 const filteredTransactions = computed(() => {
   let list = [...transactions.value]
-  
-  // 1. Filter by date (Daily if chosen, otherwise Monthly)
   if (selectedDailyDate.value) {
     list = list.filter(t => t.date === selectedDailyDate.value)
   } else {
     list = list.filter(t => t.date && t.date.startsWith(period.value))
   }
-  
-  // 2. Filter by type
   if (filterType.value !== 'all') {
     list = list.filter(t => t.type === filterType.value)
   }
-  
   return list.sort((a, b) => b.id - a.id)
 })
 
@@ -114,20 +99,24 @@ function formatDate(dateStr) {
   })
 }
 
+function editTransaction(tx) {
+  emit('open-edit-modal', tx)
+}
+
 async function deleteTransaction(id) {
-  await db.transactions.delete(id)
+  if (confirm('Yakin ingin menghapus transaksi ini?')) {
+    await db.transactions.delete(id)
+  }
 }
 </script>
 
 <template>
   <div class="px-4 py-5 animate-fade-in space-y-4">
-    <!-- Header -->
     <div>
       <h2 class="text-lg font-bold text-white">Riwayat Transaksi</h2>
       <p class="text-xs text-slate-500 mt-0.5">{{ filteredTransactions.length }} transaksi tercatat</p>
     </div>
 
-    <!-- ── Period Navigator ── -->
     <div class="flex items-center justify-between px-3 py-2.5 bg-slate-800/40 rounded-xl">
       <button @click="prevMonth" class="w-8 h-8 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all active:scale-90">
         <i class="fa-solid fa-chevron-left text-xs"></i>
@@ -141,9 +130,7 @@ async function deleteTransaction(id) {
       </button>
     </div>
 
-    <!-- ── Horizontal Date Strip (Carousel) ── -->
     <div class="flex overflow-x-auto gap-2 py-2 px-1 scrollbar-none snap-x">
-      <!-- "Semua" Pill -->
       <button
         @click="selectedDailyDate = ''"
         :class="[
@@ -157,7 +144,6 @@ async function deleteTransaction(id) {
         <span class="text-xs font-extrabold">Semua</span>
       </button>
 
-      <!-- Days Pills -->
       <button
         v-for="day in daysInMonth"
         :key="day.dateStr"
@@ -174,7 +160,6 @@ async function deleteTransaction(id) {
       </button>
     </div>
 
-    <!-- Filter pills -->
     <div class="flex gap-2">
       <button
         v-for="f in [
@@ -196,7 +181,6 @@ async function deleteTransaction(id) {
       </button>
     </div>
 
-    <!-- Empty state -->
     <div v-if="filteredTransactions.length === 0" class="glass-card p-10 flex flex-col items-center justify-center text-center w-full min-h-[200px] gap-3">
       <div class="w-16 h-16 rounded-2xl bg-slate-800/60 flex items-center justify-center">
         <i class="fa-solid fa-inbox text-3xl text-slate-600"></i>
@@ -204,7 +188,6 @@ async function deleteTransaction(id) {
       <p class="text-sm text-slate-500">Tidak ada transaksi pada tanggal/bulan ini.</p>
     </div>
 
-    <!-- Transaction list -->
     <div v-else class="space-y-2">
       <TransitionGroup name="list" tag="div" class="space-y-2">
         <div
@@ -212,7 +195,6 @@ async function deleteTransaction(id) {
           :key="tx.id"
           class="glass-card px-4 py-3 flex items-center gap-3 group hover:border-slate-600/40 transition-all duration-200"
         >
-          <!-- Icon -->
           <div
             :class="[
               'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
@@ -229,7 +211,6 @@ async function deleteTransaction(id) {
             ></i>
           </div>
 
-          <!-- Info -->
           <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold text-white truncate">{{ getCategoryById(tx.category_id).name }}</p>
             <p class="text-[10px] text-slate-500 truncate">
@@ -240,8 +221,7 @@ async function deleteTransaction(id) {
             </p>
           </div>
 
-          <!-- Amount & Delete -->
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1.5">
             <p
               :class="[
                 'text-sm font-bold whitespace-nowrap',
@@ -250,6 +230,13 @@ async function deleteTransaction(id) {
             >
               {{ tx.type === 'income' ? '+' : '-' }}{{ formatRupiah(tx.amount) }}
             </p>
+            <button
+              @click="editTransaction(tx)"
+              class="w-7 h-7 rounded-lg bg-slate-800/60 flex items-center justify-center text-slate-600 hover:text-emerald-400 hover:bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
+              title="Edit"
+            >
+              <i class="fa-solid fa-pen text-[10px]"></i>
+            </button>
             <button
               @click="deleteTransaction(tx.id)"
               class="w-7 h-7 rounded-lg bg-slate-800/60 flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
@@ -265,17 +252,13 @@ async function deleteTransaction(id) {
 </template>
 
 <style scoped>
-/* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
-/* Hide scrollbar for IE, Edge and Firefox */
 .scrollbar-none {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-
-/* List animation transitions */
 .list-enter-active,
 .list-leave-active {
   transition: all 0.3s ease;
