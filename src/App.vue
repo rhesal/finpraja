@@ -11,6 +11,7 @@ const route = useRoute()
 
 const dbStatus = ref({ connected: false, loading: true })
 const showAddModal = ref(false)
+const editingTransaction = ref(null)
 
 onMounted(async () => {
   try {
@@ -22,11 +23,18 @@ onMounted(async () => {
 })
 
 function openAddModal() {
+  editingTransaction.value = null
+  showAddModal.value = true
+}
+
+function openEditModal(tx) {
+  editingTransaction.value = tx
   showAddModal.value = true
 }
 
 function closeAddModal() {
   showAddModal.value = false
+  editingTransaction.value = null
 }
 </script>
 
@@ -58,7 +66,7 @@ function closeAddModal() {
       <main class="flex-1 overflow-y-auto pb-24">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
-            <component :is="Component" :db-status="dbStatus" @open-add-modal="openAddModal" />
+            <component :is="Component" :db-status="dbStatus" @open-add-modal="openAddModal" @open-edit-modal="openEditModal" />
           </transition>
         </router-view>
       </main>
@@ -66,8 +74,12 @@ function closeAddModal() {
       <!-- Bottom Navigation -->
       <BottomNav @add-click="openAddModal" />
 
-      <!-- Add Transaction Modal -->
-      <AddTransactionModal :show="showAddModal" @close="closeAddModal" />
+      <!-- Add / Edit Transaction Modal -->
+      <AddTransactionModal
+        :show="showAddModal"
+        :edit-transaction="editingTransaction"
+        @close="closeAddModal"
+      />
     </div>
   </div>
 </template>

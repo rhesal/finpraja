@@ -3,6 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { db } from '../db.js'
 import { useLiveQuery } from '../composables/useLiveQuery.js'
 
+const emit = defineEmits(['open-add-modal', 'open-edit-modal'])
+
 // ── State ──
 const filterType = ref('all') // 'all' | 'income' | 'expense'
 const selectedDailyDate = ref('') // 'YYYY-MM-DD' or empty for "Semua"
@@ -114,8 +116,14 @@ function formatDate(dateStr) {
   })
 }
 
+function editTransaction(tx) {
+  emit('open-edit-modal', tx)
+}
+
 async function deleteTransaction(id) {
-  await db.transactions.delete(id)
+  if (confirm('Yakin ingin menghapus transaksi ini?')) {
+    await db.transactions.delete(id)
+  }
 }
 </script>
 
@@ -240,8 +248,8 @@ async function deleteTransaction(id) {
             </p>
           </div>
 
-          <!-- Amount & Delete -->
-          <div class="flex items-center gap-2">
+          <!-- Amount & Actions -->
+          <div class="flex items-center gap-1.5">
             <p
               :class="[
                 'text-sm font-bold whitespace-nowrap',
@@ -250,6 +258,13 @@ async function deleteTransaction(id) {
             >
               {{ tx.type === 'income' ? '+' : '-' }}{{ formatRupiah(tx.amount) }}
             </p>
+            <button
+              @click="editTransaction(tx)"
+              class="w-7 h-7 rounded-lg bg-slate-800/60 flex items-center justify-center text-slate-600 hover:text-emerald-400 hover:bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
+              title="Edit"
+            >
+              <i class="fa-solid fa-pen text-[10px]"></i>
+            </button>
             <button
               @click="deleteTransaction(tx.id)"
               class="w-7 h-7 rounded-lg bg-slate-800/60 flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
