@@ -121,13 +121,52 @@ async function deleteTransaction(id) {
     await db.transactions.delete(id)
   }
 }
+
+function exportFilteredCsv() {
+  const list = filteredTransactions.value
+  if (list.length === 0) {
+    alert('Tidak ada transaksi untuk diekspor.')
+    return
+  }
+  const headers = ['Tanggal', 'Keterangan', 'Jumlah', 'Tipe', 'Kategori']
+  const rows = list.map(t => {
+    const cat = getCategoryById(t.category_id)
+    return [
+      t.date,
+      `"${(t.note || '').replace(/"/g, '""')}"`,
+      t.amount,
+      t.type === 'income' ? 'MASUK' : 'KELUAR',
+      `"${(cat.name || 'Tanpa Kategori').replace(/"/g, '""')}"`
+    ].join(',')
+  })
+  const csv = [headers.join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const suffix = selectedDailyDate.value || period.value
+  a.download = `finpraja_${suffix}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <template>
   <div class="px-4 py-5 animate-fade-in space-y-4">
-    <div>
-      <h2 class="text-lg font-bold text-white">Riwayat Transaksi</h2>
-      <p class="text-xs text-slate-500 mt-0.5">{{ filteredTransactions.length }} transaksi tercatat</p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-white">Riwayat Transaksi</h2>
+        <p class="text-xs text-slate-500 mt-0.5">{{ filteredTransactions.length }} transaksi tercatat</p>
+      </div>
+      <button
+        @click="exportFilteredCsv"
+        :disabled="filteredTransactions.length === 0"
+        class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold hover:bg-emerald-500/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+        title="Ekspor transaksi yang sedang ditampilkan"
+      >
+        <i class="fa-solid fa-file-csv text-[10px]"></i>
+        Ekspor
+      </button>
     </div>
 
     <!-- Search Bar -->
