@@ -14,6 +14,7 @@ FinPraja adalah Progressive Web App (PWA) offline-first yang berjalan di browser
 - **Laporan Visual** — Donut chart (distribusi), Bar chart (anggaran vs realisasi), Line chart (tren harian)
 - **Scan Struk (OCR)** — Ekstraksi nominal otomatis dari foto struk menggunakan Tesseract.js
 - **Import CSV** — Impor transaksi dari file CSV dengan deteksi duplikat
+- **Export CSV** — Unduh semua transaksi dalam format CSV (Tanggal, Keterangan, Jumlah, Tipe, Kategori)
 - **Backup & Restore** — Ekspor/impor data lengkap dalam format JSON
 - **Pencarian Transaksi** — Cari berdasarkan catatan atau nama kategori
 - **Service Worker** — App shell tetap bisa dibuka saat offline

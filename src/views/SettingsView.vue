@@ -331,6 +331,47 @@ async function exportData() {
   }
 }
 
+// ── CSV Export ──
+async function exportCsv() {
+  backupFeedback.value = null
+  try {
+    const allTx = await db.transactions.toArray()
+    const cats = await db.categories.toArray()
+    const catMap = Object.fromEntries(cats.map(c => [c.id, c.name]))
+
+    const headers = ['Tanggal', 'Keterangan', 'Jumlah', 'Tipe', 'Kategori']
+    const rows = allTx
+      .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
+      .map(t => [
+        t.date,
+        `"${(t.note || '').replace(/"/g, '""')}"`,
+        t.amount,
+        t.type === 'income' ? 'MASUK' : 'KELUAR',
+        `"${(catMap[t.category_id] || 'Tanpa Kategori').replace(/"/g, '""')}"`
+      ].join(','))
+
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `finpraja_transaksi_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    backupFeedback.value = {
+      success: true,
+      message: `Ekspor CSV berhasil! ${allTx.length} transaksi diunduh.`
+    }
+  } catch (err) {
+    console.error('[FinPraja] CSV Export Error:', err)
+    backupFeedback.value = {
+      success: false,
+      message: 'Gagal mengekspor CSV.'
+    }
+  }
+}
+
 function triggerRestoreInput() {
   if (!backupLoading.value) {
     backupFeedback.value = null
@@ -543,80 +584,57 @@ async function onRestoreFileChange(e) {
         </div>
       </div>
 
-      <!-- Period navigator -->
-      <div class="flex items-center justify-between px-3 py-2.5 bg-slate-800/40 rounded-xl mb-4">
-        <button @click="prevMonth" class="w-8 h-8 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all active:scale-90">
-          <i class="fa-solid fa-chevron-left text-xs"></i>
+      <!-- Period Navigator -->
+      <div class="flex items-center justify-between px-3 py-2 bg-slate-800/40 rounded-xl mb-4">
+        <button @click="prevMonth" class="w-7 h-7 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-90">
+          <i class="fa-solid fa-chevron-left text-[10px]"></i>
         </button>
-        <div class="text-center">
-          <p class="text-sm font-bold text-white">{{ periodLabel }}</p>
-          <p class="text-[9px] text-slate-500 font-mono">{{ period }}</p>
-        </div>
-        <button @click="nextMonth" class="w-8 h-8 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all active:scale-90">
-          <i class="fa-solid fa-chevron-right text-xs"></i>
+        <p class="text-xs font-bold text-white">{{ periodLabel }}</p>
+        <button @click="nextMonth" class="w-7 h-7 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-90">
+          <i class="fa-solid fa-chevron-right text-[10px]"></i>
         </button>
       </div>
 
-      <!-- Total summary -->
-      <div class="flex items-center justify-between px-3 py-2 bg-amber-500/5 border border-amber-500/10 rounded-lg mb-4">
-        <span class="text-xs text-amber-400 font-medium">
-          <i class="fa-solid fa-calculator text-[10px] mr-1"></i>Total Anggaran
-        </span>
-        <span class="text-sm font-bold text-amber-400">{{ formatRupiah(totalBudget) }}</span>
-      </div>
-
-      <!-- Category budget inputs -->
       <div class="space-y-2 mb-4">
-        <div
-          v-for="cat in parentExpenseCategories"
-          :key="'budget-' + cat.id"
-          class="flex items-center gap-3 px-3 py-2.5 bg-slate-800/30 rounded-xl"
-        >
+        <div v-for="cat in parentExpenseCategories" :key="cat.id" class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-            <i :class="['fa-solid', cat.icon, 'text-red-400/70 text-[10px]']"></i>
+            <i :class="['fa-solid', cat.icon, 'text-red-400 text-[10px]']"></i>
           </div>
-          <span class="text-xs text-slate-300 font-medium flex-1 truncate">{{ cat.name }}</span>
-          <div class="relative w-28 shrink-0">
-            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px] font-semibold">Rp</span>
+          <span class="text-xs text-slate-300 flex-1 truncate">{{ cat.name }}</span>
+          <div class="relative w-28">
+            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">Rp</span>
             <input
               type="text"
               inputmode="numeric"
-              placeholder="0"
               :value="formatBudgetInput(cat.id)"
-              @input="(e) => onBudgetInput(e, cat.id)"
-              class="w-full pl-8 pr-2 py-2 bg-slate-900/60 border border-slate-700/30 rounded-lg text-right text-xs text-white font-semibold placeholder:text-slate-700 focus:outline-none focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/20 transition-all"
+              @input="onBudgetInput($event, cat.id)"
+              placeholder="0"
+              class="w-full pl-6 pr-2 py-1.5 bg-slate-800/60 border border-slate-700/40 rounded-lg text-white text-xs text-right focus:outline-none focus:border-amber-500/50"
             />
           </div>
         </div>
       </div>
 
-      <!-- Save button -->
+      <div class="flex items-center justify-between mb-3 px-1">
+        <span class="text-xs text-slate-400">Total Anggaran</span>
+        <span class="text-sm font-bold text-amber-400">{{ formatRupiah(totalBudget) }}</span>
+      </div>
+
       <button
         @click="saveBudgets"
         :disabled="budgetSaving"
-        :class="[
-          'w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 active:scale-[0.98]',
-          budgetSaved
-            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-            : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-400',
-          budgetSaving ? 'opacity-50 cursor-not-allowed' : ''
-        ]"
+        class="w-full py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold hover:bg-amber-500/25 active:scale-[0.98] transition-all disabled:opacity-50"
       >
-        <template v-if="budgetSaved">
-          <i class="fa-solid fa-check mr-2"></i>Anggaran Tersimpan!
-        </template>
-        <template v-else-if="budgetSaving">
-          <i class="fa-solid fa-spinner fa-spin mr-2"></i>Menyimpan…
-        </template>
-        <template v-else>
-          <i class="fa-solid fa-floppy-disk mr-2"></i>Simpan Anggaran
-        </template>
+        <i v-if="!budgetSaving && !budgetSaved" class="fa-solid fa-floppy-disk mr-1.5"></i>
+        <i v-else-if="budgetSaved" class="fa-solid fa-check mr-1.5"></i>
+        <span v-else class="loading loading-spinner loading-xs mr-1.5"></span>
+        {{ budgetSaved ? 'Tersimpan!' : budgetSaving ? 'Menyimpan...' : 'Simpan Anggaran' }}
       </button>
     </div>
 
     <!-- ── CSV Import Card ── -->
     <div class="glass-card p-4">
-      <div class="flex items-center gap-3 mb-4">
+      <div class="flex items-center gap-3 mb-3">
         <div class="w-10 h-10 rounded-xl bg-sky-500/15 flex items-center justify-center">
           <i class="fa-solid fa-file-csv text-sky-400"></i>
         </div>
@@ -626,21 +644,15 @@ async function onRestoreFileChange(e) {
         </div>
       </div>
 
-      <!-- Import CSV Info -->
-      <div class="bg-slate-800/40 border border-slate-700/30 rounded-xl p-3 mb-4 text-slate-400 space-y-1">
+      <div class="bg-slate-800/40 rounded-xl p-3 mb-3 text-[10px] text-slate-400 leading-relaxed">
         <p class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Format Kolom CSV:</p>
-        <p class="text-[10px]">Kolom harus berurutan: <code class="text-sky-400">Tanggal</code>, <code class="text-sky-400">Deskripsi</code>, <code class="text-sky-400">Nominal</code>, <code class="text-sky-400">Tipe</code></p>
-        <ul class="text-[9px] list-disc list-inside pl-1 space-y-0.5">
-          <li>Tanggal: Format <code class="text-slate-300">YYYY-MM-DD</code></li>
-          <li>Nominal: Angka tanpa titik/koma (e.g. <code class="text-slate-300">50000</code>)</li>
-          <li>Tipe: <code class="text-emerald-400 font-semibold">Masuk</code> (Pemasukan) atau <code class="text-red-400 font-semibold">Keluar</code> (Pengeluaran)</li>
-        </ul>
+        <p class="font-mono text-[9px] mt-1">Tanggal, Keterangan, Jumlah, Tipe</p>
+        <p class="mt-1">Contoh: 2026-01-15, Belanja, 50000, KELUAR</p>
       </div>
 
-      <!-- CSV File Input / Drop-zone -->
       <div
         @click="triggerCsvInput"
-        class="border border-dashed border-slate-700/60 hover:border-sky-500/50 bg-slate-800/10 hover:bg-slate-800/20 rounded-xl p-6 text-center cursor-pointer mb-4 transition-all duration-200"
+        class="relative overflow-hidden group cursor-pointer border border-dashed border-slate-700/60 hover:border-sky-500/50 bg-slate-800/20 hover:bg-slate-800/40 rounded-xl p-4 flex items-center gap-3 transition-all duration-200"
       >
         <input
           type="file"
@@ -649,19 +661,19 @@ async function onRestoreFileChange(e) {
           class="hidden"
           @change="onCsvFileChange"
         />
-        <div class="flex flex-col items-center gap-2">
-          <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-500 group-hover:text-sky-400"></i>
-          <div>
-            <p class="text-xs font-semibold text-white">
-              {{ csvLoading ? 'Memproses CSV...' : 'Pilih File CSV Mutasi' }}
-            </p>
-            <p class="text-[10px] text-slate-500 mt-1">Ketuk untuk memilih file .csv lokal</p>
-          </div>
+        <div class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400 shrink-0">
+          <i v-if="!csvLoading" class="fa-solid fa-cloud-arrow-up text-base"></i>
+          <span v-else class="loading loading-spinner loading-xs text-sky-400"></span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-semibold text-white">
+            {{ csvLoading ? 'Memproses CSV...' : 'Pilih File CSV Mutasi' }}
+          </p>
+          <p class="text-[10px] text-slate-500 mt-1">Ketuk untuk memilih file .csv lokal</p>
         </div>
       </div>
 
-      <!-- Import feedback -->
-      <div v-if="csvFeedback" class="text-center p-2.5 bg-slate-800/50 border border-slate-700/40 rounded-xl animate-fade-in">
+      <div v-if="csvFeedback" class="mt-3 text-center p-2.5 bg-slate-800/50 border border-slate-700/40 rounded-xl animate-fade-in">
         <p class="text-xs font-semibold" :class="csvFeedback.success ? 'text-emerald-400' : 'text-red-400'">
           <i :class="['fa-solid', csvFeedback.success ? 'fa-circle-check' : 'fa-circle-exclamation', 'mr-1']"></i>
           {{ csvFeedback.message }}
@@ -669,33 +681,33 @@ async function onRestoreFileChange(e) {
       </div>
     </div>
 
-    <!-- ── JSON Backup & Restore Card (NEW) ── -->
+    <!-- ── Backup & Restore ── -->
     <div class="glass-card p-4">
-      <div class="flex items-center gap-3 mb-3">
-        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-          <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center">
+          <i class="fa-solid fa-cloud-arrow-down text-indigo-400"></i>
         </div>
         <div>
-          <p class="text-sm font-bold text-white">Keamanan & Cadangan Data</p>
-          <p class="text-[10px] text-slate-500">Pencadangan & pemulihan database (JSON)</p>
+          <p class="text-sm font-bold text-white">Cadangan & Pemulihan</p>
+          <p class="text-[10px] text-slate-500">Ekspor / impor data lengkap (JSON)</p>
         </div>
       </div>
 
-      <p class="text-[11px] text-slate-400 leading-relaxed mb-4">
-        Semua data disimpan 100% lokal di perangkat Anda. Cadangkan data Anda secara berkala untuk menghindari kehilangan catatan keuangan akibat pembersihan cache browser.
-      </p>
-
       <div class="flex gap-2">
-        <!-- Export Button -->
+        <button
+          @click="exportCsv"
+          class="flex-1 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
+        >
+          <i class="fa-solid fa-file-csv text-xs"></i>
+          <span>Ekspor CSV</span>
+        </button>
         <button
           @click="exportData"
-          class="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700/60 text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
+          class="flex-1 py-3 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
         >
-          <i class="fa-solid fa-download text-xs text-emerald-400"></i>
-          <span>Ekspor Data</span>
+          <i class="fa-solid fa-download text-xs"></i>
+          <span>Ekspor JSON</span>
         </button>
-
-        <!-- Restore Button -->
         <button
           @click="triggerRestoreInput"
           :disabled="backupLoading"
