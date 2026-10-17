@@ -19,6 +19,7 @@ const amountDisplay = ref('')
 const amountInputRef = ref(null)
 const fileInputRef = ref(null)
 const ocrLoading = ref(false)
+const ocrFeedback = ref(null)
 
 const form = ref({
   type: 'expense',
@@ -42,6 +43,7 @@ const canSave = computed(() =>
 watch(() => props.show, async (newVal) => {
   if (newVal) {
     allCategories.value = await db.categories.toArray()
+    ocrFeedback.value = null
     if (props.editTransaction) {
       form.value = {
         type: props.editTransaction.type,
@@ -151,27 +153,40 @@ async function saveTransaction() {
 }
 
 function triggerFileInput() {
-  if (!ocrLoading.value) fileInputRef.value?.click()
+  if (!ocrLoading.value) {
+    ocrFeedback.value = null
+    fileInputRef.value?.click()
+  }
 }
 
 async function onFileChange(e) {
   const file = e.target.files?.[0]
   if (!file) return
   ocrLoading.value = true
+  ocrFeedback.value = null
   try {
     const result = await Tesseract.recognize(file, 'ind+eng')
     const text = result.data.text
     const amount = extractAmountFromText(text)
+    const extractedDate = extractDateFromText(text)
+    let found = false
     if (amount > 0) {
       form.value.amount = amount
       amountDisplay.value = formatCurrency(amount)
+      found = true
     }
-    const extractedDate = extractDateFromText(text)
     if (extractedDate) {
       form.value.date = extractedDate
+      found = true
+    }
+    if (found) {
+      ocrFeedback.value = { success: true, message: 'Data berhasil diekstrak dari struk.' }
+    } else {
+      ocrFeedback.value = { success: false, message: 'Tidak menemukan nominal atau tanggal. Isi manual.' }
     }
   } catch (err) {
     console.error('[Tesseract] OCR Error:', err)
+    ocrFeedback.value = { success: false, message: 'Gagal memindai struk. Coba lagi atau isi manual.' }
   } finally {
     ocrLoading.value = false
     if (fileInputRef.value) fileInputRef.value.value = ''
@@ -179,7 +194,6 @@ async function onFileChange(e) {
 }
 
 function extractDateFromText(text) {
-  // Match common date formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
   const patterns = [
     /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/,
     /\b(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})\b/,
@@ -190,7 +204,6 @@ function extractDateFromText(text) {
     if (m) {
       let d, mo, y
       if (m[1].length === 4) {
-        // YYYY-MM-DD
         y = m[1]; mo = m[2]; d = m[3]
       } else {
         d = m[1]; mo = m[2]; y = m[3]
@@ -250,6 +263,7 @@ function extractAmountFromText(text) {
 
 function close() {
   success.value = false
+  ocrFeedback.value = null
   emit('close')
 }
 </script>
@@ -293,6 +307,12 @@ function close() {
                     </p>
                   </div>
                   <i class="fa-solid fa-chevron-right text-[10px] text-slate-600 group-hover:text-slate-400 transition-colors"></i>
+                </div>
+                <div v-if="ocrFeedback" class="mt-2 text-center p-2 bg-slate-800/50 border border-slate-700/40 rounded-lg animate-fade-in">
+                  <p class="text-[11px] font-semibold" :class="ocrFeedback.success ? 'text-emerald-400' : 'text-amber-400'">
+                    <i :class="['fa-solid', ocrFeedback.success ? 'fa-circle-check' : 'fa-circle-info', 'mr-1']"></i>
+                    {{ ocrFeedback.message }}
+                  </p>
                 </div>
               </div>
               <div class="flex gap-2 p-1 bg-slate-800/60 rounded-xl mb-5">
