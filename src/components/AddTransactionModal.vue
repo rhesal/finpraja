@@ -160,10 +160,15 @@ async function onFileChange(e) {
   ocrLoading.value = true
   try {
     const result = await Tesseract.recognize(file, 'ind+eng')
-    const amount = extractAmountFromText(result.data.text)
+    const text = result.data.text
+    const amount = extractAmountFromText(text)
     if (amount > 0) {
       form.value.amount = amount
       amountDisplay.value = formatCurrency(amount)
+    }
+    const extractedDate = extractDateFromText(text)
+    if (extractedDate) {
+      form.value.date = extractedDate
     }
   } catch (err) {
     console.error('[Tesseract] OCR Error:', err)
@@ -171,6 +176,36 @@ async function onFileChange(e) {
     ocrLoading.value = false
     if (fileInputRef.value) fileInputRef.value.value = ''
   }
+}
+
+function extractDateFromText(text) {
+  // Match common date formats: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
+  const patterns = [
+    /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/,
+    /\b(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})\b/,
+    /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})\b/
+  ]
+  for (const re of patterns) {
+    const m = text.match(re)
+    if (m) {
+      let d, mo, y
+      if (m[1].length === 4) {
+        // YYYY-MM-DD
+        y = m[1]; mo = m[2]; d = m[3]
+      } else {
+        d = m[1]; mo = m[2]; y = m[3]
+        if (y.length === 2) y = '20' + y
+      }
+      const dd = String(d).padStart(2, '0')
+      const mm = String(mo).padStart(2, '0')
+      const candidate = `${y}-${mm}-${dd}`
+      const parsed = new Date(candidate)
+      if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000 && parsed.getFullYear() < 2100) {
+        return candidate
+      }
+    }
+  }
+  return null
 }
 
 function extractAmountFromText(text) {
@@ -254,7 +289,7 @@ function close() {
                       {{ ocrLoading ? 'Memindai struk...' : 'Kamera / Unggah Struk Belanja' }}
                     </p>
                     <p class="text-[10px] text-slate-500 truncate">
-                      {{ ocrLoading ? 'Memproses OCR lokal...' : 'Nominal terisi otomatis dari struk' }}
+                      {{ ocrLoading ? 'Memproses OCR lokal...' : 'Nominal & tanggal terisi otomatis dari struk' }}
                     </p>
                   </div>
                   <i class="fa-solid fa-chevron-right text-[10px] text-slate-600 group-hover:text-slate-400 transition-colors"></i>
